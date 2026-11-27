@@ -3,9 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Pati Rotası – a cat GeoGame</title>
+    <link rel="icon" href="assets/sprites/cat-sit.png">
+
+    <!-- Fonts: pixel title font + pixel body font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
+    <!-- Leaflet (map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    
+
+    <!-- ===== TOP BAR ===== -->
+    <header id="topbar" class="hidden">
+        <h1 class="logo"><img src="assets/sprites/cat-sit.png" alt=""> PATİ ROTASI</h1>
+        <div class="stat">Round <span id="stat-round">1</span> / <span id="stat-total">6</span></div>
+        <div class="stat">Score <span id="stat-score">0</span></div>
+        <div class="stat">Lives <span id="stat-lives"></span></div>
+        <div class="stat">Best <span id="stat-best">0</span></div>
+    </header>
+
+    <!-- ===== START SCREEN ===== -->
+    <section id="start-screen" class="screen active">
+        <div class="start-box">
+            <img class="start-cat" src="assets/sprites/cat-sit.png" alt="Pixel cat">
+            <h1 class="title">PATİ ROTASI</h1>
+            <p class="subtitle">A pixel cat jumps across Turkey, one province at a time</p>
+
+            <div class="how-to">
+                <p>🗺️ Reach the <b>goal province</b> 🏠 before the time runs out.</p>
+                <p>🐾 The cat can only jump to a <b>neighbouring province</b>.</p>
+                <p>🌧️ Cats hate water: a province where it is <b>really raining now</b> costs extra time.</p>
+                <p>🐟 Fish give you time. 🐕 Dogs take one of your <b>9 lives</b>.</p>
+                <p>⭐ The closer your route is to the shortest route, the more points!</p>
+            </div>
+
+            <label for="player-name">Your name</label>
+            <input id="player-name" type="text" maxlength="12" placeholder="Melis">
+            <button id="start-btn" class="btn btn-big">START</button>
+
+            <h3>High scores</h3>
+            <ol id="start-highscores" class="highscores"></ol>
+        </div>
+    </section>
+
+    <!-- ===== GAME SCREEN ===== -->
+    <section id="game-screen" class="screen">
+        <div id="map"></div>
+
+        <aside class="side-panel">
+            <div class="mission">
+                <h2>Mission</h2>
+                <p id="mission-text">...</p>
+                <p id="mission-info" class="hint-small"></p>
+            </div>
+
+            <div class="timer-row">
+                <div class="timer-bar"><div id="timer-fill"></div></div>
+                <span id="timer-text">00:00</span>
+            </div>
+
+            <div class="counters">
+                <div>🐾 Jumps: <b id="jumps">0</b></div>
+                <div>🐟 Fish: <b id="fish-count">0</b></div>
+            </div>
+
+            <button id="hint-btn" class="btn">HINT (H) −5 s</button>
+
+            <div class="legend">
+                <span><img src="assets/sprites/goal.png" alt=""> goal</span>
+                <span><img src="assets/sprites/fish.png" alt=""> +5 s</span>
+                <span><img src="assets/sprites/dog.png" alt=""> −1 life</span>
+                <span><img src="assets/sprites/rain.png" alt=""> raining now: −4 s</span>
+            </div>
+
+            <div class="cat-talk">
+                <img id="talk-cat" src="assets/sprites/cat-sit.png" alt="">
+                <p id="cat-text" class="bubble">Meow! Click a pink province next to me to jump.</p>
+            </div>
+            <p id="weather-note" class="hint-small"></p>
+        </aside>
+    </section>
+
+    <!-- ===== ROUND RESULT (pop-up) ===== -->
+    <div id="round-result" class="overlay hidden">
+        <div class="overlay-box">
+            <img id="rr-cat" class="rr-cat" src="assets/sprites/cat-jump.png" alt="">
+            <h2 id="rr-title"></h2>
+            <table id="rr-table"></table>
+            <p id="rr-total"></p>
+            <button id="rr-continue" class="btn btn-big">NEXT ROUND</button>
+        </div>
+    </div>
+
+    <!-- ===== END SCREEN ===== -->
+    <section id="end-screen" class="screen">
+        <div class="result-grid">
+            <div class="panel">
+                <h2>Your routes (pink) vs shortest routes (dashed)</h2>
+                <div id="result-map"></div>
+                <p id="route-km"></p>
+            </div>
+            <div class="panel">
+                <h2>Jumps per round</h2>
+                <div class="chart-box"><canvas id="jump-chart"></canvas></div>
+            </div>
+            <div class="panel final-box">
+                <img id="final-cat" class="start-cat" src="assets/sprites/cat-sit.png" alt="">
+                <h2 id="final-title"></h2>
+                <p id="final-score"></p>
+                <p id="final-info"></p>
+                <button id="again-btn" class="btn btn-big">PLAY AGAIN</button>
+            </div>
+            <div class="panel">
+                <h2>High scores</h2>
+                <ol id="end-highscores" class="highscores"></ol>
+            </div>
+        </div>
+    </section>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+
+    <!-- Game code (order matters) -->
+    <script src="js/timer.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
