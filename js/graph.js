@@ -15,8 +15,9 @@ function createGraph(adjacency) {
         return neighbours(a).includes(b);
     }
 
-    // Breadth-first search: the route with the fewest jumps
-    function shortestPath(start, goal) {
+    // Breadth-first search: the route with the fewest jumps.
+    // "blocked" = provinces the cat cannot enter (e.g. snow)
+    function shortestPath(start, goal, blocked) {
         if (start === goal) return [start];
         const previous = { [start]: null };
         const queue = [start];
@@ -24,6 +25,7 @@ function createGraph(adjacency) {
             const current = queue.shift();
             for (const next of neighbours(current)) {
                 if (next in previous) continue;
+                if (blocked && blocked.has(next) && next !== goal) continue;
                 previous[next] = current;
                 if (next === goal) {
                     const path = [goal];
@@ -38,13 +40,14 @@ function createGraph(adjacency) {
     }
 
     // number of jumps from one province to all others (BFS layers)
-    function jumpsFrom(start) {
+    function jumpsFrom(start, blocked) {
         const dist = { [start]: 0 };
         const queue = [start];
         while (queue.length > 0) {
             const current = queue.shift();
             for (const next of neighbours(current)) {
                 if (next in dist) continue;
+                if (blocked && blocked.has(next)) continue;
                 dist[next] = dist[current] + 1;
                 queue.push(next);
             }

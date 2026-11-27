@@ -9,6 +9,7 @@ let PROVINCES = null;      // turkey-provinces.geojson
 let INFO = null;           // provinces.json: adjacency + centre points
 let graph = null, game = null, catMap = null, resultMap = null, jumpChart = null;
 let weather = null;        // live weather of all provinces
+let snowNames = [];        // provinces where it snows now (closed from round 3)
 let timer = null;
 let playing = false;       // a round is running
 let busy = false;          // the cat is in the air
@@ -16,16 +17,16 @@ let busy = false;          // the cat is in the air
 const $ = function (id) { return document.getElementById(id); };
 
 const GOAL_LINES = {
-    "Van": "Your cousin, the white Van cat with one blue and one amber eye, is waiting in Van!",
-    "Ankara": "The fluffy Ankara cat invited you for tea in Ankara!",
-    "İstanbul": "The street cats of İstanbul are having a party. Don't be late!",
-    "Niğde": "Grandma cat in Niğde made you a fish dinner!"
+    "Van": "Bir gözü mavi, bir gözü kehribar renkli kuzenin Van kedisi seni Van'da bekliyor!",
+    "Ankara": "Tüylü Ankara kedisi seni Ankara'ya çaya davet etti!",
+    "İstanbul": "İstanbul'un sokak kedileri parti veriyor. Geç kalma!",
+    "Niğde": "Niğde'deki babaanne kedi sana balık yaptı!"
 };
 const OTHER_LINES = [
-    "A warm blanket is waiting for you in {city}.",
-    "Your best friend is waiting for you in {city}.",
-    "There is a sunny window in {city}. Go and nap!",
-    "Someone in {city} has a box. You MUST sit in it."
+    "{in} seni sıcacık bir battaniye bekliyor.",
+    "En yakın arkadaşın seni {in} bekliyor.",
+    "{in} güneş alan bir pencere var. Git ve uyu!",
+    "{in} birinin bir kutusu var. İçine oturmak ZORUNDASIN."
 ];
 
 // ---------- small DOM helpers ----------
@@ -60,7 +61,7 @@ function updateCounters() {
 function renderHighScores(listElement) {
     const list = highScores.load();
     listElement.innerHTML = "";
-    if (list.length === 0) { listElement.innerHTML = '<li class="empty">No scores yet</li>'; return; }
+    if (list.length === 0) { listElement.innerHTML = '<li class="empty">Henüz puan yok</li>'; return; }
     list.forEach(function (e) {
         const li = document.createElement("li");
         li.innerHTML = e.name + " <span>" + e.score + "</span>";
@@ -87,7 +88,7 @@ async function init() {
         PROVINCES = await geoRes.json();
         INFO = await infoRes.json();
     } catch (error) {
-        alert("Data could not be loaded. Please open the game with Live Server or GitHub Pages.");
+        alert("Veriler yüklenemedi. Lütfen oyunu Live Server ya da GitHub Pages ile aç.");
         return;
     }
     graph = createGraph(INFO.adjacency);
@@ -96,36 +97,42 @@ async function init() {
 }
 
 async function startGame() {
-    game.reset($("player-name").value.trim() || "Player");
+    game.reset($("player-name").value.trim() || "Oyuncu");
     showScreen("game-screen");
     if (!catMap) catMap = createCatMap("map", PROVINCES, INFO.centers, onProvinceClick);
     catMap.refresh();
     updateTopbar();
-    say("Checking the weather... cats don't like rain!");
+    say("Hava durumuna bakıyorum... kediler yağmuru sevmez!");
 
     weatherService.clear();
     weather = await weatherService.loadAll(INFO.centers);
     const wetNames = Object.keys(weather.provinces).filter(function (n) { return weather.provinces[n].wet; });
-    catMap.setWeather(wetNames);
+    snowNames = Object.keys(weather.provinces).filter(function (n) { return weather.provinces[n].snow; });
+    catMap.setWeather(wetNames, snowNames);
     $("weather-note").textContent = weather.live
-        ? "Live weather (Open-Meteo): it is raining or snowing now in " + wetNames.length + " provinces."
-        : "Weather service not reachable: demo rain is used.";
+        ? "Canlı hava durumu (Open-Meteo): şu an " + wetNames.length + " ilde yağış var (" + snowNames.length + " ilde kar)."
+        : "Hava durumu servisine ulaşılamadı: deneme amaçlı yağmur/kar kullanılıyor.";
     startRound();
 }
 
 // ---------- one round ----------
 function startRound() {
-    const r = game.newRound();
+    const r = game.newRound(snowNames);
     catMap.startRound(r);
+    catMap.setRules(r.rules, r.blocked);
     catMap.setReachable(graph.neighbours(r.start));
     updateTopbar();
     updateCounters();
 
-    const line = GOAL_LINES[r.goal] || OTHER_LINES[r.number % OTHER_LINES.length].replace("{city}", r.goal);
-    $("mission-text").textContent = "Go from " + r.start + " to " + r.goal + "! " + line;
-    $("mission-info").textContent = r.goal + " is " + Math.round(kmBetween(r.start, r.goal)) +
-        " km away. The shortest route has " + (r.optimal.length - 1) + " jumps.";
-    say("Meow! Click a pink province next to me to jump.");
+    const line = GOAL_LINES[r.goal] || OTHER_LINES[r.number % OTHER_LINES.length].replace("{in}", locative(r.goal));
+    $("mission-text").textContent = r.start + " → " + r.goal + "! " + line;
+    let info = r.goal + " kuş uçuşu " + Math.round(kmBetween(r.start, r.goal)) + " km uzakta.";
+    if (r.rules.showJumpCount) info += " En kısa rota " + (r.optimal.length - 1) + " zıplama.";
+    if (!r.rules.showNames) info += " ❗ İl isimleri gizli. Kar yağan ❄️ iller kapalı.";
+    if (!r.rules.highlight) info += " ❗ Pembe yardım yok, yanlış tıklama −" + WRONG_CLICK_PENALTY + " sn, köpekler hareket ediyor!";
+    $("mission-info").textContent = info;
+    say(r.rules.highlight ? "Miyav! Zıplamak için yanımdaki pembe illerden birine tıkla."
+                          : "Zor mod! Artık pembe yardım yok. Hangi iller benimkine komşu?");
 
     if (timer) timer.stop();
     timer = createTimer(r.timeLimit, onTick, onTimeUp);
@@ -138,14 +145,16 @@ function onProvinceClick(name) {
     if (!playing || busy) return;
     const s = game.getState();
     if (name === s.catAt) return;
-    if (!graph.areNeighbours(s.catAt, name)) {
+    const isWet = weather.provinces[name].wet;
+    const res = game.jump(name, isWet);
+    if (!res.ok) {
         catMap.shake();
-        say("Too far! I can only jump to a neighbouring province. 🐾");
+        if (res.blocked) say("Orada çok kar var! ❄️ O il kapalı.", "wet");
+        else say("Çok uzak! Sadece komşu bir ile zıplayabilirim. 🐾" + (res.penalty ? " −" + res.penalty + " sn" : ""));
+        if (res.penalty) timer.addTime(-res.penalty);
         return;
     }
     busy = true;
-    const isWet = weather.provinces[name].wet;
-    const res = game.jump(name, isWet);
     catMap.moveCat(name, res.rain ? "wet" : "sit", function () {
         if (res.fish) catMap.removeItem(name);
         if (res.dog) catMap.removeItem(name);
@@ -153,9 +162,9 @@ function onProvinceClick(name) {
         updateCounters();
 
         const notes = [];
-        if (res.fish) notes.push("Yum, a fish! +" + FISH_BONUS + " s");
-        if (res.dog) notes.push("WOOF! A dog! I lost a life.");
-        if (res.rain) notes.push("Brrr, it's " + weather.provinces[name].text + " in " + name + "! −" + RAIN_PENALTY + " s");
+        if (res.fish) notes.push("Mmm, balık! +" + FISH_BONUS + " sn");
+        if (res.dog) notes.push("HAV! Köpek! Bir canımı kaybettim.");
+        if (res.rain) notes.push("Brrr, " + name + " ıslak (" + weatherTr(weather.provinces[name].text) + ")! −" + RAIN_PENALTY + " sn");
         say(notes.length ? notes.join(" ") : pickJumpLine(name), res.rain ? "wet" : (res.dog ? "jump" : "sit"));
 
         if (res.timeChange) timer.addTime(res.timeChange);
@@ -163,15 +172,44 @@ function onProvinceClick(name) {
 
         if (res.gameOver) { endRound(false, false); return; }
         if (res.arrived) { endRound(true, true); return; }
+
+        // hardest rounds: the dogs walk after every jump
+        if (game.getState().current.rules.dogsMove) {
+            const dm = game.moveDogs();
+            dm.moves.forEach(function (m) { catMap.moveItem(m.from, m.to); });
+            if (dm.caught) {
+                catMap.removeItem(name);
+                updateTopbar();
+                say("Bir köpek peşime düştü ve beni yakaladı! −1 can 🐕", "jump");
+            }
+            if (dm.gameOver) { endRound(false, false); return; }
+        }
         catMap.setReachable(graph.neighbours(name));
         busy = false;
     });
 }
 
+// Turkish locative suffix with vowel harmony: Van'da, İzmir'de, Kars'ta, Sinop'ta
+function locative(name) {
+    const lower = name.toLocaleLowerCase("tr");
+    const vowels = lower.match(/[aeıioöuü]/g) || ["a"];
+    const back = "aıou".includes(vowels[vowels.length - 1]);
+    const hard = "çfhkpsşt".includes(lower[lower.length - 1]);
+    return name + "'" + (hard ? "t" : "d") + (back ? "a" : "e");
+}
+
+const WEATHER_TR = {
+    "clear": "açık", "cloudy": "bulutlu", "fog": "sisli", "drizzle": "çisenti", "rain": "yağmur",
+    "snow": "kar", "showers": "sağanak", "snow showers": "kar sağanağı", "thunderstorm": "fırtına",
+    "unknown": "bilinmiyor", "rain (demo)": "yağmur (deneme)", "snow (demo)": "kar (deneme)", "dry (demo)": "kuru (deneme)"
+};
+function weatherTr(text) { return WEATHER_TR[text] || text; }
+
 function pickJumpLine(name) {
     const w = weather.provinces[name];
     const t = w.temp === null ? "" : " (" + w.icon + " " + w.temp + "°C)";
-    return "Hop! Now I'm in " + name + t + ".";
+    const loc = locative(name);
+    return "Hop! Şimdi " + loc + (loc.endsWith("a") ? "yım" : "yim") + t + ".";
 }
 
 function onTimeUp() {
@@ -184,7 +222,8 @@ function useHint() {
     const next = game.hint();
     if (!next) return;
     catMap.showHint(next);
-    say("Psst... jump to " + next + " (green). −" + HINT_COST + " s");
+    const named = game.getState().current.rules.showNames;
+    say("Psst... sıradaki il: " + (named ? next : "yeşil olan") + ". −" + HINT_COST + " sn");
     timer.addTime(-HINT_COST);
 }
 
@@ -202,22 +241,22 @@ function endRound(success, timeoutPenalty) {
 function showRoundResult(r, gameOver) {
     const s = game.getState();
     if (r.success) {
-        $("rr-title").textContent = "🏠 You made it to " + r.goal + "!";
+        $("rr-title").textContent = "🏠 " + r.goal + " hedefine ulaştın!";
         $("rr-cat").src = "assets/sprites/cat-jump.png";
     } else if (s.lives <= 0 && r.dogHits > 0) {
-        $("rr-title").textContent = "🐕 Oh no, the dogs got all 9 lives!";
+        $("rr-title").textContent = "🐕 Eyvah, köpekler 9 canın hepsini aldı!";
         $("rr-cat").src = "assets/sprites/cat-wet.png";
     } else {
-        $("rr-title").textContent = "⏰ Time's up! −" + TIMEOUT_LIVES + " lives";
+        $("rr-title").textContent = "⏰ Süre bitti! −" + TIMEOUT_LIVES + " can";
         $("rr-cat").src = "assets/sprites/cat-wet.png";
     }
     $("rr-table").innerHTML =
-        "<tr><td>🐾 Your jumps / shortest route</td><td>" + r.jumps + " / " + r.best + "</td></tr>" +
-        "<tr><td>⭐ Route points</td><td>" + r.routePoints + "</td></tr>" +
-        "<tr><td>⏱️ Time points (2 per second left)</td><td>" + r.timePoints + "</td></tr>" +
-        "<tr><td>🐟 Fish / 🐕 dogs / 🌧️ rain / 💡 hints</td><td>" + r.fishEaten + " / " + r.dogHits + " / " + r.rainHits + " / " + r.hints + "</td></tr>";
-    $("rr-total").innerHTML = "<b>+" + r.points + " points</b> · Lives left: " + Math.max(0, s.lives);
-    $("rr-continue").textContent = gameOver ? "SEE RESULTS" : "NEXT ROUND";
+        "<tr><td>🐾 Senin zıplaman / en kısa rota</td><td>" + r.jumps + " / " + r.best + "</td></tr>" +
+        "<tr><td>⭐ Rota puanı</td><td>" + r.routePoints + "</td></tr>" +
+        "<tr><td>⏱️ Süre puanı (kalan her saniye 2)</td><td>" + r.timePoints + "</td></tr>" +
+        "<tr><td>🐟 Balık / 🐕 köpek / 🌧️ yağmur / 💡 ipucu / ❌ yanlış tıklama</td><td>" + r.fishEaten + " / " + r.dogHits + " / " + r.rainHits + " / " + r.hints + " / " + r.wrongClicks + "</td></tr>";
+    $("rr-total").innerHTML = "<b>+" + r.points + " puan</b> · Kalan can: " + Math.max(0, s.lives);
+    $("rr-continue").textContent = gameOver ? "SONUÇLARI GÖR" : "SONRAKİ TUR";
     $("round-result").classList.remove("hidden");
     $("rr-continue").focus();
 }
@@ -236,11 +275,11 @@ function endGame() {
     updateTopbar();
 
     const success = s.history.filter(function (r) { return r.success; }).length;
-    $("final-title").textContent = s.lives > 0 ? "ALL ROUNDS DONE!" : "OUT OF LIVES!";
+    $("final-title").textContent = s.lives > 0 ? "TÜM TURLAR BİTTİ!" : "CANIN KALMADI!";
     $("final-cat").src = "assets/sprites/cat-" + (s.lives > 0 ? "jump" : "wet") + ".png";
-    $("final-score").textContent = s.score + " pts";
-    $("final-info").textContent = "Goals reached: " + success + " / " + s.history.length + " · Lives left: " + Math.max(0, s.lives) +
-        (list[0] && list[0].score === s.score && s.score > 0 ? " · 🏆 NEW BEST!" : "");
+    $("final-score").textContent = s.score + " puan";
+    $("final-info").textContent = "Ulaşılan hedef: " + success + " / " + s.history.length + " · Kalan can: " + Math.max(0, s.lives) +
+        (list[0] && list[0].score === s.score && s.score > 0 ? " · 🏆 YENİ REKOR!" : "");
     renderHighScores($("end-highscores"));
 
     if (!resultMap) resultMap = createCatMap("result-map", PROVINCES, INFO.centers, function () {});
@@ -251,7 +290,7 @@ function endGame() {
     s.history.forEach(function (r) {
         for (let i = 1; i < r.path.length; i++) km += kmBetween(r.path[i - 1], r.path[i]);
     });
-    $("route-km").textContent = "The cat travelled " + Math.round(km).toLocaleString("en") + " km (Turf.js, centre to centre).";
+    $("route-km").textContent = "Kedi toplam " + Math.round(km).toLocaleString("tr") + " km yol yaptı (Turf.js, il merkezleri arası).";
 
     const labels = s.history.map(function (r) { return r.number + ". " + r.goal; });
     if (jumpChart) jumpChart.destroy();
@@ -260,8 +299,8 @@ function endGame() {
         data: {
             labels: labels,
             datasets: [
-                { label: "Your jumps", data: s.history.map(function (r) { return r.jumps; }), backgroundColor: "#c98f96", borderColor: "#5a3d42", borderWidth: 2 },
-                { label: "Shortest route", data: s.history.map(function (r) { return r.best; }), backgroundColor: "#f6e4e3", borderColor: "#5a3d42", borderWidth: 2 }
+                { label: "Senin zıplaman", data: s.history.map(function (r) { return r.jumps; }), backgroundColor: "#c98f96", borderColor: "#5a3d42", borderWidth: 2 },
+                { label: "En kısa rota", data: s.history.map(function (r) { return r.best; }), backgroundColor: "#f6e4e3", borderColor: "#5a3d42", borderWidth: 2 }
             ]
         },
         options: {
@@ -270,7 +309,7 @@ function endGame() {
             scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
             plugins: { tooltip: { callbacks: { afterBody: function (items) {
                 const r = s.history[items[0].dataIndex];
-                return r.success ? "+" + r.points + " points" : "goal not reached";
+                return r.success ? "+" + r.points + " puan" : "hedefe ulaşılamadı";
             } } } }
         }
     });

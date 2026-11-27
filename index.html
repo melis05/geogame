@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pati Rotası – a cat GeoGame</title>
+    <title>Pati Rotası – bir kedi coğrafya oyunu</title>
     <link rel="icon" href="assets/sprites/cat-sit.png">
 
     <!-- Fonts: pixel title font + pixel body font -->
@@ -21,32 +21,33 @@
     <!-- ===== TOP BAR ===== -->
     <header id="topbar" class="hidden">
         <h1 class="logo"><img src="assets/sprites/cat-sit.png" alt=""> PATİ ROTASI</h1>
-        <div class="stat">Round <span id="stat-round">1</span> / <span id="stat-total">6</span></div>
-        <div class="stat">Score <span id="stat-score">0</span></div>
-        <div class="stat">Lives <span id="stat-lives"></span></div>
-        <div class="stat">Best <span id="stat-best">0</span></div>
+        <div class="stat">Tur <span id="stat-round">1</span> / <span id="stat-total">6</span></div>
+        <div class="stat">Puan <span id="stat-score">0</span></div>
+        <div class="stat">Can <span id="stat-lives"></span></div>
+        <div class="stat">Rekor <span id="stat-best">0</span></div>
     </header>
 
     <!-- ===== START SCREEN ===== -->
     <section id="start-screen" class="screen active">
         <div class="start-box">
-            <img class="start-cat" src="assets/sprites/cat-sit.png" alt="Pixel cat">
+            <img class="start-cat" src="assets/sprites/cat-sit.png" alt="Pixel kedi">
             <h1 class="title">PATİ ROTASI</h1>
-            <p class="subtitle">A pixel cat jumps across Turkey, one province at a time</p>
+            <p class="subtitle">Pixel bir kedi Türkiye'yi il il zıplayarak geziyor</p>
 
             <div class="how-to">
-                <p>🗺️ Reach the <b>goal province</b> 🏠 before the time runs out.</p>
-                <p>🐾 The cat can only jump to a <b>neighbouring province</b>.</p>
-                <p>🌧️ Cats hate water: a province where it is <b>really raining now</b> costs extra time.</p>
-                <p>🐟 Fish give you time. 🐕 Dogs take one of your <b>9 lives</b>.</p>
-                <p>⭐ The closer your route is to the shortest route, the more points!</p>
+                <p>🗺️ Süre bitmeden <b>hedef ile</b> 🏠 ulaş.</p>
+                <p>🐾 Kedi sadece <b>komşu bir ile</b> zıplayabilir.</p>
+                <p>🌧️ Kediler sudan nefret eder: <b>şu an gerçekten yağmur yağan</b> bir il ekstra süre kaybettirir.</p>
+                <p>🐟 Balık süre kazandırır. 🐕 Köpek <b>9 canından</b> birini alır.</p>
+                <p>⭐ Rotan en kısa rotaya ne kadar yakınsa o kadar çok puan!</p>
+                <p>🔥 Oyun zorlaşır: 3. turdan itibaren il isimleri gizlenir ve ❄️ kar yağan iller kapanır; 5–6. turlarda pembe yardım kalkar, yanlış tıklama süre kaybettirir ve köpekler hareket eder!</p>
             </div>
 
-            <label for="player-name">Your name</label>
+            <label for="player-name">Adın</label>
             <input id="player-name" type="text" maxlength="12" placeholder="Melis">
-            <button id="start-btn" class="btn btn-big">START</button>
+            <button id="start-btn" class="btn btn-big">BAŞLA</button>
 
-            <h3>High scores</h3>
+            <h3>En yüksek puanlar</h3>
             <ol id="start-highscores" class="highscores"></ol>
         </div>
     </section>
@@ -57,7 +58,7 @@
 
         <aside class="side-panel">
             <div class="mission">
-                <h2>Mission</h2>
+                <h2>Görev</h2>
                 <p id="mission-text">...</p>
                 <p id="mission-info" class="hint-small"></p>
             </div>
@@ -68,22 +69,23 @@
             </div>
 
             <div class="counters">
-                <div>🐾 Jumps: <b id="jumps">0</b></div>
-                <div>🐟 Fish: <b id="fish-count">0</b></div>
+                <div>🐾 Zıplama: <b id="jumps">0</b></div>
+                <div>🐟 Balık: <b id="fish-count">0</b></div>
             </div>
 
-            <button id="hint-btn" class="btn">HINT (H) −5 s</button>
+            <button id="hint-btn" class="btn">İPUCU (H) −5 sn</button>
 
             <div class="legend">
-                <span><img src="assets/sprites/goal.png" alt=""> goal</span>
-                <span><img src="assets/sprites/fish.png" alt=""> +5 s</span>
-                <span><img src="assets/sprites/dog.png" alt=""> −1 life</span>
-                <span><img src="assets/sprites/rain.png" alt=""> raining now: −4 s</span>
+                <span><img src="assets/sprites/goal.png" alt=""> hedef</span>
+                <span><img src="assets/sprites/fish.png" alt=""> +5 sn</span>
+                <span><img src="assets/sprites/dog.png" alt=""> −1 can</span>
+                <span><img src="assets/sprites/rain.png" alt=""> şu an yağmur: −4 sn</span>
+                <span><img src="assets/sprites/snow.png" alt=""> kar: kapalı (3. tur+)</span>
             </div>
 
             <div class="cat-talk">
                 <img id="talk-cat" src="assets/sprites/cat-sit.png" alt="">
-                <p id="cat-text" class="bubble">Meow! Click a pink province next to me to jump.</p>
+                <p id="cat-text" class="bubble">Miyav! Zıplamak için yanımdaki pembe illerden birine tıkla.</p>
             </div>
             <p id="weather-note" class="hint-small"></p>
         </aside>
@@ -96,7 +98,7 @@
             <h2 id="rr-title"></h2>
             <table id="rr-table"></table>
             <p id="rr-total"></p>
-            <button id="rr-continue" class="btn btn-big">NEXT ROUND</button>
+            <button id="rr-continue" class="btn btn-big">SONRAKİ TUR</button>
         </div>
     </div>
 
@@ -104,12 +106,12 @@
     <section id="end-screen" class="screen">
         <div class="result-grid">
             <div class="panel">
-                <h2>Your routes (pink) vs shortest routes (dashed)</h2>
+                <h2>Senin rotaların (pembe) ve en kısa rotalar (kesikli)</h2>
                 <div id="result-map"></div>
                 <p id="route-km"></p>
             </div>
             <div class="panel">
-                <h2>Jumps per round</h2>
+                <h2>Turlara göre zıplama sayısı</h2>
                 <div class="chart-box"><canvas id="jump-chart"></canvas></div>
             </div>
             <div class="panel final-box">
@@ -117,10 +119,10 @@
                 <h2 id="final-title"></h2>
                 <p id="final-score"></p>
                 <p id="final-info"></p>
-                <button id="again-btn" class="btn btn-big">PLAY AGAIN</button>
+                <button id="again-btn" class="btn btn-big">TEKRAR OYNA</button>
             </div>
             <div class="panel">
-                <h2>High scores</h2>
+                <h2>En yüksek puanlar</h2>
                 <ol id="end-highscores" class="highscores"></ol>
             </div>
         </div>

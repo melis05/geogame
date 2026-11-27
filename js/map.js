@@ -4,7 +4,8 @@
 
 const COLORS = {
     base: "#f6e4e3", border: "#c98f96", reach: "#e8b4bc", reachHover: "#c98f96",
-    goal: "#fbe3a4", wet: "#cfdeea", wetReach: "#b9c9e6", visited: "#f1d0d4", hint: "#9be0b0"
+    goal: "#fbe3a4", wet: "#cfdeea", wetReach: "#b9c9e6", visited: "#f1d0d4", hint: "#9be0b0",
+    snow: "#ffffff", closed: "#e9e9ee"
 };
 
 function pixelIcon(src, size) {
@@ -22,17 +23,26 @@ function createCatMap(elementId, provincesGeojson, centers, onProvinceClick) {
     map.attributionControl.addAttribution("Weather: Open-Meteo · Borders: tr-geojson");
 
     let catAt = null, goal = null;
-    let reachable = [], wet = new Set(), visited = new Set(), hintName = null;
+    let reachable = [], wet = new Set(), snow = new Set(), closed = new Set(), visited = new Set(), hintName = null;
+    let showNames = true, highlight = true;
     const layersByName = {};
 
     function styleFor(name) {
+        const canGo = highlight && reachable.includes(name);
         let fill = COLORS.base;
         if (visited.has(name)) fill = COLORS.visited;
         if (wet.has(name)) fill = COLORS.wet;
-        if (reachable.includes(name)) fill = wet.has(name) ? COLORS.wetReach : COLORS.reach;
+        if (snow.has(name)) fill = COLORS.snow;
+        if (closed.has(name)) fill = COLORS.closed;
+        if (canGo) fill = wet.has(name) ? COLORS.wetReach : COLORS.reach;
         if (name === goal) fill = COLORS.goal;
         if (name === hintName) fill = COLORS.hint;
-        return { color: COLORS.border, weight: reachable.includes(name) ? 2 : 1, fillColor: fill, fillOpacity: 1 };
+        return {
+            color: closed.has(name) ? "#8a8a96" : COLORS.border,
+            weight: canGo ? 2 : 1,
+            dashArray: closed.has(name) ? "4 4" : null,
+            fillColor: fill, fillOpacity: 1
+        };
     }
 
     const provinces = L.geoJSON(provincesGeojson, {
@@ -43,7 +53,7 @@ function createCatMap(elementId, provincesGeojson, centers, onProvinceClick) {
             layer.bindTooltip(name, { sticky: true, direction: "top" });
             // event handlers: hover highlight for reachable provinces, click to jump
             layer.on("mouseover", function () {
-                if (reachable.includes(name)) layer.setStyle({ fillColor: COLORS.reachHover });
+                if (highlight && reachable.includes(name)) layer.setStyle({ fillColor: COLORS.reachHover });
             });
             layer.on("mouseout", function () { layer.setStyle(styleFor(name)); });
             layer.on("click", function () { onProvinceClick(name); });
@@ -64,13 +74,37 @@ function createCatMap(elementId, provincesGeojson, centers, onProvinceClick) {
         Object.keys(layersByName).forEach(function (n) { layersByName[n].setStyle(styleFor(n)); });
     }
 
-    function setWeather(wetNames) {
+    function setWeather(wetNames, snowNames) {
         wet = new Set(wetNames);
+        snow = new Set(snowNames || []);
         rainLayer.clearLayers();
         wetNames.forEach(function (n) {
-            L.marker(centers[n], { icon: pixelIcon("assets/sprites/rain.png", 26), interactive: false }).addTo(rainLayer);
+            const icon = snow.has(n) ? "assets/sprites/snow.png" : "assets/sprites/rain.png";
+            L.marker(centers[n], { icon: pixelIcon(icon, 26), interactive: false }).addTo(rainLayer);
         });
         restyleAll();
+    }
+
+    // which helps are on in this round
+    function setRules(rules, closedNames) {
+        highlight = rules.highlight;
+        closed = new Set(closedNames || []);
+        if (rules.showNames !== showNames) {
+            showNames = rules.showNames;
+            Object.keys(layersByName).forEach(function (n) {
+                const layer = layersByName[n];
+                if (showNames) layer.bindTooltip(n, { sticky: true, direction: "top" });
+                else layer.unbindTooltip();
+            });
+        }
+        restyleAll();
+    }
+
+    function moveItem(from, to) {
+        if (!items[from]) return;
+        items[to] = items[from];
+        delete items[from];
+        items[to].setLatLng(centers[to]);
     }
 
     function startRound(round) {
@@ -158,7 +192,7 @@ function createCatMap(elementId, provincesGeojson, centers, onProvinceClick) {
         itemLayer.clearLayers();
         pathLayer.clearLayers();
         rainLayer.clearLayers();
-        reachable = []; visited = new Set(); goal = null; hintName = null;
+        reachable = []; visited = new Set(); closed = new Set(); snow = new Set(); wet = new Set(); goal = null; hintName = null;
         restyleAll();
         if (catMarker) { map.removeLayer(catMarker); catMarker = null; }
         const all = [];
@@ -177,5 +211,5 @@ function createCatMap(elementId, provincesGeojson, centers, onProvinceClick) {
 
     function refresh() { map.invalidateSize(); }
 
-    return { setWeather, startRound, setReachable, setCatSprite, moveCat, removeItem, showHint, shake, drawSummary, refresh };
+    return { setWeather, setRules, moveItem, startRound, setReachable, setCatSprite, moveCat, removeItem, showHint, shake, drawSummary, refresh };
 }

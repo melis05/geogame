@@ -17,6 +17,10 @@ function describeWeatherCode(code) {
     return { text: "unknown", icon: "❔" };
 }
 
+function isSnowCode(code) {
+    return (code >= 71 && code <= 77) || (code >= 85 && code <= 86);
+}
+
 function isWetCode(code) {
     return (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
 }
@@ -47,7 +51,8 @@ function createWeatherService() {
                     temp: Math.round(c.temperature_2m),
                     text: d.text,
                     icon: d.icon,
-                    wet: isWetCode(c.weather_code) || c.precipitation > 0
+                    wet: isWetCode(c.weather_code) || c.precipitation > 0,
+                    snow: isSnowCode(c.weather_code)
                 };
             });
         } catch (error) {
@@ -55,8 +60,9 @@ function createWeatherService() {
             console.warn("Weather API failed, using offline demo rain.", error);
             result.live = false;
             names.forEach(function (name) {
-                const wet = Math.random() < 0.15;
-                result.provinces[name] = { temp: null, text: wet ? "rain (demo)" : "dry (demo)", icon: wet ? "🌧️" : "☁️", wet: wet };
+                const wet = Math.random() < 0.18;
+                const snow = wet && Math.random() < 0.4;
+                result.provinces[name] = { temp: null, text: snow ? "snow (demo)" : (wet ? "rain (demo)" : "dry (demo)"), icon: snow ? "❄️" : (wet ? "🌧️" : "☁️"), wet: wet, snow: snow };
             });
         }
         cache = result;

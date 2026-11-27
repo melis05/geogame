@@ -8,12 +8,19 @@ const FISH_BONUS = 5;             // seconds
 const RAIN_PENALTY = 4;           // seconds
 const HINT_COST = 5;              // seconds
 const TIMEOUT_LIVES = 2;          // lives lost when the time runs out
+const WRONG_CLICK_PENALTY = 3;    // seconds, only in the hardest rounds
 
-// difficulty: how far the goal is (in jumps) and how many dogs / fish
+// difficulty: goal distance, dogs / fish, time and which helps are switched off
+//   rounds 1-2: learning rounds (names, neighbour highlight, shortest-route length shown)
+//   rounds 3-4: names hidden, shortest-route length hidden, snowy provinces are closed
+//   rounds 5-6: + no neighbour highlight, wrong clicks cost time, dogs move
 function roundSettings(round) {
-    if (round <= 2) return { minJumps: 3, maxJumps: 4, dogs: 2, fish: 4, secondsPerJump: 7, factor: 1.0 };
-    if (round <= 4) return { minJumps: 5, maxJumps: 6, dogs: 4, fish: 4, secondsPerJump: 6, factor: 0.9 };
-    return { minJumps: 7, maxJumps: 9, dogs: 6, fish: 3, secondsPerJump: 5, factor: 0.8 };
+    if (round <= 2) return { minJumps: 3, maxJumps: 4, dogs: 2, fish: 4, secondsPerJump: 7, factor: 1.0,
+        showNames: true, showJumpCount: true, highlight: true, snowBlocks: false, wrongPenalty: false, dogsMove: false };
+    if (round <= 4) return { minJumps: 5, maxJumps: 6, dogs: 4, fish: 4, secondsPerJump: 6, factor: 0.9,
+        showNames: false, showJumpCount: false, highlight: true, snowBlocks: true, wrongPenalty: false, dogsMove: false };
+    return { minJumps: 7, maxJumps: 9, dogs: 5, fish: 3, secondsPerJump: 6, factor: 0.85,
+        showNames: false, showJumpCount: false, highlight: false, snowBlocks: true, wrongPenalty: true, dogsMove: true };
 }
 
 // CLOSURE: the whole game state is private
@@ -43,25 +50,29 @@ function createGame(graph) {
         return copy.slice(0, n);
     }
 
-    function newRound() {
+    // snowy: names of provinces where it snows now (closed from round 3)
+    function newRound(snowy) {
         state.round += 1;
         const s = roundSettings(state.round);
-        const fromStart = graph.jumpsFrom(state.catAt);
+        const blocked = new Set(s.snowBlocks ? snowy : []);
+        blocked.delete(state.catAt);
+        const fromStart = graph.jumpsFrom(state.catAt, blocked);
         let candidates = graph.names.filter(function (n) {
-            return fromStart[n] >= s.minJumps && fromStart[n] <= s.maxJumps;
+            return fromStart[n] >= s.minJumps && fromStart[n] <= s.maxJumps && !blocked.has(n);
         });
         if (candidates.length === 0) {            // e.g. starting in a corner: take the farthest ones
             const maxD = Math.max.apply(null, Object.values(fromStart));
             candidates = graph.names.filter(function (n) { return fromStart[n] === maxD; });
         }
         const goal = pickRandom(candidates, 1)[0];
-        const optimal = graph.shortestPath(state.catAt, goal);
+        const optimal = graph.shortestPath(state.catAt, goal, blocked);
         const best = optimal.length - 1;
 
         // fish and dogs near the useful corridor between start and goal
-        const fromGoal = graph.jumpsFrom(goal);
+        const fromGoal = graph.jumpsFrom(goal, blocked);
         const corridor = graph.names.filter(function (n) {
-            return n !== state.catAt && n !== goal && fromStart[n] + fromGoal[n] <= best + 2;
+            return n !== state.catAt && n !== goal && !blocked.has(n) &&
+                (n in fromStart) && (n in fromGoal) && fromStart[n] + fromGoal[n] <= best + 2;
         });
         const picked = pickRandom(corridor, s.dogs + s.fish);
         const dogs = picked.slice(0, s.dogs);
@@ -79,6 +90,9 @@ function createGame(graph) {
             dogHits: 0,
             rainHits: 0,
             hints: 0,
+            wrongClicks: 0,
+            blocked: Array.from(blocked),
+            rules: s,
             timeLimit: Math.round((best * s.secondsPerJump + 12) * s.factor)
         };
         return getState().current;
@@ -87,7 +101,11 @@ function createGame(graph) {
     // try to jump; returns what happened
     function jump(to, isWet) {
         const r = state.current;
-        if (!graph.areNeighbours(state.catAt, to)) return { ok: false };
+        if (r.blocked.includes(to)) return { ok: false, blocked: true };
+        if (!graph.areNeighbours(state.catAt, to)) {
+            r.wrongClicks += 1;
+            return { ok: false, penalty: r.rules.wrongPenalty ? WRONG_CLICK_PENALTY : 0 };
+        }
         state.catAt = to;
         r.path.push(to);
         const result = { ok: true, timeChange: 0, lostLife: false, fish: false, dog: false, rain: false, arrived: to === r.goal };
@@ -104,8 +122,32 @@ function createGame(graph) {
         return result;
     }
 
+    // hardest rounds: after every jump each dog walks to a random neighbouring province
+    function moveDogs() {
+        const r = state.current;
+        const moves = [];
+        let caught = false;
+        r.dogs = r.dogs.map(function (dog) {
+            const options = graph.neighbours(dog).filter(function (n) {
+                return n !== r.goal && !r.dogs.includes(n) && !r.fish.includes(n) && !r.blocked.includes(n) &&
+                    !moves.some(function (m) { return m.to === n; });
+            });
+            if (options.length === 0) return dog;
+            const to = options[Math.floor(Math.random() * options.length)];
+            moves.push({ from: dog, to: to });
+            return to;
+        });
+        if (r.dogs.includes(state.catAt)) {
+            caught = true;
+            r.dogs = r.dogs.filter(function (n) { return n !== state.catAt; });
+            r.dogHits += 1;
+            state.lives -= 1;
+        }
+        return { moves: moves, caught: caught, gameOver: state.lives <= 0 };
+    }
+
     function hint() {
-        const path = graph.shortestPath(state.catAt, state.current.goal);
+        const path = graph.shortestPath(state.catAt, state.current.goal, new Set(state.current.blocked));
         state.current.hints += 1;
         return path && path.length > 1 ? path[1] : null;
     }
@@ -127,7 +169,7 @@ function createGame(graph) {
         const record = {
             number: r.number, start: r.start, goal: r.goal, path: r.path, optimal: r.optimal,
             jumps: jumps, best: best, success: success, routePoints: routePoints, timePoints: timePoints,
-            points: points, fishEaten: r.fishEaten, dogHits: r.dogHits, rainHits: r.rainHits, hints: r.hints
+            points: points, fishEaten: r.fishEaten, dogHits: r.dogHits, rainHits: r.rainHits, hints: r.hints, wrongClicks: r.wrongClicks
         };
         state.history.push(record);
         return { record: record, gameOver: isOver() };
@@ -138,7 +180,7 @@ function createGame(graph) {
     }
 
     reset();
-    return { reset, getState, newRound, jump, hint, finishRound, isOver };
+    return { reset, getState, newRound, jump, moveDogs, hint, finishRound, isOver };
 }
 
 // CLOSURE: high scores saved in localStorage

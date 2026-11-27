@@ -5,6 +5,8 @@ Melis Nimet Kazan – Hacettepe University, Geomatics Engineering
 
 🎮 **Play online:** _link will be added (GitHub Pages)_
 
+🇹🇷 The game interface is in **Turkish**; this documentation is in English.
+
 ---
 
 ## 1. Game description
@@ -23,7 +25,7 @@ The rule that makes it a GeoGame: **the cat can only jump to a neighbouring prov
 1. The player enters a name and starts the game.
 2. The game loads the province borders, the neighbour list and the live weather of all 81 provinces.
 3. Each round shows a start province (the cat), a goal province (🏠), fish (🐟), dogs (🐕) and rainy provinces (🌧️).
-4. Provinces next to the cat are highlighted in pink. Clicking one makes the cat jump there (animation). Clicking a province that is too far shakes the map and shows a message.
+4. Provinces next to the cat are highlighted in pink (rounds 1–4). Clicking one makes the cat jump there (animation). Clicking a province that is too far (or closed by snow) shakes the map and shows a message.
 5. A countdown timer runs. Fish add time, rainy provinces and hints remove time.
 6. Dogs take one of the cat's **9 lives**.
 7. When the cat reaches the goal, the round is scored and a result pop-up is shown. If the time runs out, the cat loses 2 lives.
@@ -46,13 +48,15 @@ Style: **pixel art** sprites (cat, fish, dog, house, rain cloud), a **pixel font
 
 ## 4. Game progression
 
-| Rounds | Goal distance | Dogs / fish | Time |
-|---|---|---|---|
-| 1 – 2 | 3–4 jumps | 2 / 4 | 7 s per jump + 12 s |
-| 3 – 4 | 5–6 jumps | 4 / 4 | 6 s per jump + 12 s, × 0.9 |
-| 5 – 6 | 7–9 jumps | 6 / 3 | 5 s per jump + 12 s, × 0.8 |
+The game gets harder in three steps. Helps are switched off one by one, so in the last rounds the player really needs to know the map of Turkey.
 
-The goal of a round is the start of the next round, so the cat really travels across the country. Fish and dogs are placed near the useful corridor between start and goal (provinces where *jumps from start + jumps to goal ≤ shortest route + 2*), so they matter for the route choice.
+| Rounds | Goal distance | Dogs / fish | Time | Helps and rules |
+|---|---|---|---|---|
+| 1 – 2 | 3–4 jumps | 2 / 4 | 7 s per jump + 12 s | Learning rounds: province names on hover, pink neighbours, length of the shortest route is shown |
+| 3 – 4 | 5–6 jumps | 4 / 4 | (6 s per jump + 12 s) × 0.9 | **Names hidden**, shortest-route length hidden, **provinces where it is snowing now are closed** ❄️ |
+| 5 – 6 | 7–9 jumps | 5 / 3 | (6 s per jump + 12 s) × 0.85 | + **no pink neighbour help**, **wrong click −3 s**, **dogs move** to a random neighbouring province after every jump |
+
+The goal of a round is the start of the next round, so the cat really travels across the country. Fish and dogs are placed near the useful corridor between start and goal (provinces where *jumps from start + jumps to goal ≤ shortest route + 2*). From round 3 the shortest route is calculated **around the closed (snowy) provinces**, so live snow can force a longer route.
 
 ## 5. Number of tasks
 
@@ -61,7 +65,7 @@ The goal of a round is the start of the next round, so the cat really travels ac
 ## 6. Lives
 
 The cat has **9 lives** ♥♥♥♥♥♥♥♥♥.
-- A dog: −1 life.
+- A dog: −1 life (in rounds 5–6 the dogs walk, and a dog that walks into the cat's province also takes a life).
 - Time runs out: −2 lives (the round is lost).
 - 0 lives = game over.
 
@@ -79,7 +83,7 @@ A perfect route gives 100 route points; every extra jump lowers it. A lost round
 ## 8. Temporal component
 
 - Every round has a countdown (longer for far goals, shorter in later rounds).
-- **🐟 Fish: +5 s** · **🌧️ jump into a province where it is raining/snowing now: −4 s** · **💡 hint (H key): −5 s**
+- **🐟 Fish: +5 s** · **🌧️ jump into a province where it is raining/snowing now: −4 s** · **💡 hint (H key): −5 s** · **❌ wrong click (rounds 5–6): −3 s**
 - Time points reward fast players; when the time is over the cat loses 2 lives.
 - The weather itself is time-dependent: it is loaded live when the game starts, so the same route can be good today and bad tomorrow.
 
@@ -118,11 +122,11 @@ Most parts of the game are **factory functions**. Their variables are private; o
 | Function | Private data |
 |---|---|
 | `createTimer()` (`js/timer.js`) | `remaining` seconds and the `intervalId`; `addTime()` lets fish/rain change the time safely |
-| `createGraph()` (`js/graph.js`) | the neighbour list; `shortestPath()` (BFS) and `jumpsFrom()` use it |
+| `createGraph()` (`js/graph.js`) | the neighbour list; `shortestPath()` (BFS, can avoid closed provinces) and `jumpsFrom()` use it |
 | `createWeatherService()` (`js/weather.js`) | a `cache` with the weather of all provinces (loaded once per game) |
 | `createGame()` (`js/game.js`) | the game state (round, score, lives, cat position, history); `getState()` returns only a copy |
 | `createHighScores()` (`js/game.js`) | the `localStorage` key and the top-5 logic |
-| `createCatMap()` (`js/map.js`) | the Leaflet map, layers, markers and the colour state of every province |
+| `createCatMap()` (`js/map.js`) | the Leaflet map, layers, markers, the colour state of every province and which helps (names, pink highlight) are on |
 
 Example – the timer:
 
@@ -166,7 +170,7 @@ geogame/
 ├── data/
 │   ├── turkey-provinces.geojson
 │   └── provinces.json         neighbours + label points
-├── assets/sprites/    pixel art (cat, fish, dog, goal, rain) – drawn with Claude
+├── assets/sprites/    pixel art (cat, fish, dog, goal, rain, snow) – drawn with Claude
 ├── tools/build_adjacency.py
 └── docs/              sketches for this README
 ```
