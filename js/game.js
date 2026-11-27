@@ -5,22 +5,22 @@
 const TOTAL_ROUNDS = 6;
 const START_LIVES = 9;            // a cat has 9 lives!
 const FISH_BONUS = 5;             // seconds
-const RAIN_PENALTY = 4;           // seconds
-const HINT_COST = 5;              // seconds
+const RAIN_PENALTY = 5;           // seconds
+const HINT_COST = 8;              // seconds
 const TIMEOUT_LIVES = 2;          // lives lost when the time runs out
-const WRONG_CLICK_PENALTY = 3;    // seconds, only in the hardest rounds
+const WRONG_CLICK_PENALTY = 4;    // seconds, only in the hardest rounds
 
 // difficulty: goal distance, dogs / fish, time and which helps are switched off
-//   rounds 1-2: learning rounds (names, neighbour highlight, shortest-route length shown)
-//   rounds 3-4: names hidden, shortest-route length hidden, snowy provinces are closed
-//   rounds 5-6: + no neighbour highlight, wrong clicks cost time, dogs move
+//   rounds 1-2: names, neighbour highlight and shortest-route length shown (but short time)
+//   rounds 3-4: names hidden, shortest-route length hidden, snowy provinces closed, dogs walk
+//   rounds 5-6: + no neighbour highlight, wrong clicks cost time, dogs CHASE the cat
 function roundSettings(round) {
-    if (round <= 2) return { minJumps: 3, maxJumps: 4, dogs: 2, fish: 4, secondsPerJump: 7, factor: 1.0,
-        showNames: true, showJumpCount: true, highlight: true, snowBlocks: false, wrongPenalty: false, dogsMove: false };
-    if (round <= 4) return { minJumps: 5, maxJumps: 6, dogs: 4, fish: 4, secondsPerJump: 6, factor: 0.9,
-        showNames: false, showJumpCount: false, highlight: true, snowBlocks: true, wrongPenalty: false, dogsMove: false };
-    return { minJumps: 7, maxJumps: 9, dogs: 5, fish: 3, secondsPerJump: 6, factor: 0.85,
-        showNames: false, showJumpCount: false, highlight: false, snowBlocks: true, wrongPenalty: true, dogsMove: true };
+    if (round <= 2) return { minJumps: 3, maxJumps: 4, dogs: 3, fish: 3, secondsPerJump: 6, extra: 8, factor: 1.0,
+        showNames: true, showJumpCount: true, highlight: true, snowBlocks: false, wrongPenalty: false, dogsMove: false, dogsChase: false };
+    if (round <= 4) return { minJumps: 5, maxJumps: 7, dogs: 5, fish: 3, secondsPerJump: 5, extra: 8, factor: 0.9,
+        showNames: false, showJumpCount: false, highlight: true, snowBlocks: true, wrongPenalty: false, dogsMove: true, dogsChase: false };
+    return { minJumps: 7, maxJumps: 10, dogs: 6, fish: 2, secondsPerJump: 5, extra: 10, factor: 0.85,
+        showNames: false, showJumpCount: false, highlight: false, snowBlocks: true, wrongPenalty: true, dogsMove: true, dogsChase: true };
 }
 
 // CLOSURE: the whole game state is private
@@ -93,7 +93,7 @@ function createGame(graph) {
             wrongClicks: 0,
             blocked: Array.from(blocked),
             rules: s,
-            timeLimit: Math.round((best * s.secondsPerJump + 12) * s.factor)
+            timeLimit: Math.round((best * s.secondsPerJump + s.extra) * s.factor)
         };
         return getState().current;
     }
@@ -133,7 +133,13 @@ function createGame(graph) {
                     !moves.some(function (m) { return m.to === n; });
             });
             if (options.length === 0) return dog;
-            const to = options[Math.floor(Math.random() * options.length)];
+            let to = options[Math.floor(Math.random() * options.length)];
+            if (r.rules.dogsChase && Math.random() < 0.6) {
+                // chase: step to the neighbour that is closest (in jumps) to the cat
+                const toCat = graph.jumpsFrom(state.catAt, new Set(r.blocked));
+                options.sort(function (a, b) { return (toCat[a] ?? 99) - (toCat[b] ?? 99); });
+                to = options[0];
+            }
             moves.push({ from: dog, to: to });
             return to;
         });

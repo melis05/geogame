@@ -128,8 +128,8 @@ function startRound() {
     $("mission-text").textContent = r.start + " → " + r.goal + "! " + line;
     let info = r.goal + " kuş uçuşu " + Math.round(kmBetween(r.start, r.goal)) + " km uzakta.";
     if (r.rules.showJumpCount) info += " En kısa rota " + (r.optimal.length - 1) + " zıplama.";
-    if (!r.rules.showNames) info += " ❗ İl isimleri gizli. Kar yağan ❄️ iller kapalı.";
-    if (!r.rules.highlight) info += " ❗ Pembe yardım yok, yanlış tıklama −" + WRONG_CLICK_PENALTY + " sn, köpekler hareket ediyor!";
+    if (!r.rules.showNames) info += " ❗ İl isimleri gizli, kar yağan ❄️ iller kapalı, köpekler dolaşıyor.";
+    if (!r.rules.highlight) info += " ❗ Pembe yardım yok, yanlış tıklama −" + WRONG_CLICK_PENALTY + " sn, köpekler seni KOVALIYOR!";
     $("mission-info").textContent = info;
     say(r.rules.highlight ? "Miyav! Zıplamak için yanımdaki pembe illerden birine tıkla."
                           : "Zor mod! Artık pembe yardım yok. Hangi iller benimkine komşu?");

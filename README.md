@@ -52,9 +52,9 @@ The game gets harder in three steps. Helps are switched off one by one, so in th
 
 | Rounds | Goal distance | Dogs / fish | Time | Helps and rules |
 |---|---|---|---|---|
-| 1 – 2 | 3–4 jumps | 2 / 4 | 7 s per jump + 12 s | Learning rounds: province names on hover, pink neighbours, length of the shortest route is shown |
-| 3 – 4 | 5–6 jumps | 4 / 4 | (6 s per jump + 12 s) × 0.9 | **Names hidden**, shortest-route length hidden, **provinces where it is snowing now are closed** ❄️ |
-| 5 – 6 | 7–9 jumps | 5 / 3 | (6 s per jump + 12 s) × 0.85 | + **no pink neighbour help**, **wrong click −3 s**, **dogs move** to a random neighbouring province after every jump |
+| 1 – 2 | 3–4 jumps | 3 / 3 | 6 s per jump + 8 s | Province names on hover, pink neighbours, length of the shortest route is shown |
+| 3 – 4 | 5–7 jumps | 5 / 3 | (5 s per jump + 8 s) × 0.9 | **Names hidden**, shortest-route length hidden, **provinces where it is snowing now are closed** ❄️, **dogs walk** to a random neighbouring province after every jump |
+| 5 – 6 | 7–10 jumps | 6 / 2 | (5 s per jump + 10 s) × 0.85 | + **no pink neighbour help**, **wrong click −4 s**, **dogs chase the cat** (60 % of their steps go towards the cat, using BFS distance) |
 
 The goal of a round is the start of the next round, so the cat really travels across the country. Fish and dogs are placed near the useful corridor between start and goal (provinces where *jumps from start + jumps to goal ≤ shortest route + 2*). From round 3 the shortest route is calculated **around the closed (snowy) provinces**, so live snow can force a longer route.
 
@@ -65,7 +65,7 @@ The goal of a round is the start of the next round, so the cat really travels ac
 ## 6. Lives
 
 The cat has **9 lives** ♥♥♥♥♥♥♥♥♥.
-- A dog: −1 life (in rounds 5–6 the dogs walk, and a dog that walks into the cat's province also takes a life).
+- A dog: −1 life (from round 3 the dogs walk – in rounds 5–6 they chase the cat – and a dog that walks into the cat's province also takes a life).
 - Time runs out: −2 lives (the round is lost).
 - 0 lives = game over.
 
@@ -83,7 +83,7 @@ A perfect route gives 100 route points; every extra jump lowers it. A lost round
 ## 8. Temporal component
 
 - Every round has a countdown (longer for far goals, shorter in later rounds).
-- **🐟 Fish: +5 s** · **🌧️ jump into a province where it is raining/snowing now: −4 s** · **💡 hint (H key): −5 s** · **❌ wrong click (rounds 5–6): −3 s**
+- **🐟 Fish: +5 s** · **🌧️ jump into a province where it is raining/snowing now: −5 s** · **💡 hint (H key): −8 s** · **❌ wrong click (rounds 5–6): −4 s**
 - Time points reward fast players; when the time is over the cat loses 2 lives.
 - The weather itself is time-dependent: it is loaded live when the game starts, so the same route can be good today and bad tomorrow.
 
@@ -111,7 +111,7 @@ Fonts: *Press Start 2P* and *VT323* (Google Fonts).
 
 1. **Province click** (`js/map.js`): every province polygon has `layer.on("click", …)`. It calls `onProvinceClick(name)`, which checks if the province is a neighbour of the cat and then makes the cat jump (or shakes the map if it is too far).
 2. **Province hover** (`mouseover` / `mouseout`): reachable provinces turn darker pink under the mouse and go back to their normal colour when the mouse leaves.
-3. **Keyboard** (`keydown` on `document`): **Enter** starts the game, **H** asks for a hint (the next province on the shortest route turns green, −5 s), **Enter/Space** closes the round result pop-up.
+3. **Keyboard** (`keydown` on `document`): **Enter** starts the game, **H** asks for a hint (the next province on the shortest route turns green, −8 s), **Enter/Space** closes the round result pop-up.
 
 Other handlers: START, HINT, NEXT ROUND and PLAY AGAIN buttons.
 
